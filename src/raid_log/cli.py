@@ -11,7 +11,7 @@ import typer
 from raid_log import __version__
 from raid_log.findings import Finding, Level, as_dict, github_annotation
 from raid_log.loader import Loaded, RegisterError, load
-from raid_log.report import ReportOptions, build_report, to_markdown
+from raid_log.report import ReportOptions, build_report, to_html, to_markdown
 from raid_log.rules import validate as run_rules
 
 app = typer.Typer(
@@ -38,6 +38,7 @@ TodayOption = Annotated[
 
 class ReportFormat(StrEnum):
     MARKDOWN = "markdown"
+    HTML = "html"
 
 
 class ValidateFormat(StrEnum):
@@ -122,7 +123,8 @@ def report(
         int, typer.Option(min=0, help="Age at which an open issue counts as aging.")
     ] = 14,
     output_format: Annotated[
-        ReportFormat, typer.Option("--format", help="Output format.")
+        ReportFormat,
+        typer.Option("--format", help="markdown, or html (standalone, with the heatmap)."),
     ] = ReportFormat.MARKDOWN,
     output: Annotated[
         Path | None, typer.Option("--output", "-o", help="Write to a file instead of stdout.")
@@ -139,8 +141,16 @@ def report(
         due_within=due_within,
         aging_days=aging_days,
     )
-    text = to_markdown(build_report(loaded.register, options))
-    _write(text, output)
+    built = build_report(loaded.register, options)
+    if output_format is ReportFormat.MARKDOWN:
+        _write(to_markdown(built), output)
+        return
+    from raid_log import heatmap as grid
+
+    svg = None
+    if grid.plotted_risks(loaded.register):
+        svg = grid.to_svg(grid.draw(loaded.register, as_of))
+    _write(to_html(built, svg), output)
 
 
 @app.command()

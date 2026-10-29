@@ -86,7 +86,8 @@ def draw(register: Register, today: dt.date, include_closed: bool = False) -> Fi
     for spine in ax.spines.values():
         spine.set_visible(False)
 
-    scope = "risks" if include_closed else "active risks"
+    noun = "risk" if len(risks) == 1 else "risks"
+    scope = noun if include_closed else f"active {noun}"
     ax.set_title(
         f"{register.title}\n{len(risks)} {scope} as of {today}",
         loc="left",

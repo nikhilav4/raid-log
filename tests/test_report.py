@@ -3,7 +3,7 @@ import datetime as dt
 from typer.testing import CliRunner
 
 from raid_log.cli import app
-from raid_log.report import ReportOptions, build_report, to_markdown
+from raid_log.report import ReportOptions, build_report, to_html, to_markdown
 
 from .factories import TODAY, load_items, make_item, register_text
 
@@ -122,3 +122,41 @@ def test_report_skips_items_with_schema_errors(tmp_path):
 
     assert result.exit_code == 0
     assert "1 item with schema errors left out" in result.output
+
+
+def test_html_report_is_standalone_and_escapes_text():
+    report = build(
+        make_item(
+            "R-001",
+            title="Vendor <script>alert(1)</script> slip",
+            probability=4,
+            impact=4,
+            mitigation="Weekly checkpoint",
+        ),
+    )
+    svg = '<?xml version="1.0"?>\n<!DOCTYPE svg>\n<svg viewBox="0 0 10 10"></svg>'
+
+    html = to_html(report, svg)
+
+    assert html.startswith("<!doctype html>")
+    assert "&lt;script&gt;alert(1)&lt;/script&gt;" in html
+    assert "<script>" not in html
+    assert '<figure class="heatmap"><svg viewBox="0 0 10 10"></svg></figure>' in html
+    assert "<?xml" not in html
+    assert "background: #f8c08a" in html  # exposure 16 is in the high band
+
+
+def test_html_report_command_embeds_the_heatmap(tmp_path):
+    register = tmp_path / "raid.yaml"
+    register.write_text(register_text(make_item("R-001", raised=D(2026, 10, 20))))
+    out = tmp_path / "status.html"
+
+    result = CliRunner().invoke(
+        app,
+        ["report", str(register), "--format", "html", "-o", str(out), "--today", "2026-10-28"],
+    )
+
+    assert result.exit_code == 0, result.output
+    html = out.read_text()
+    assert "<svg" in html
+    assert "1 active risk as of 2026-10-28" in html

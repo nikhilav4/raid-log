@@ -5,6 +5,10 @@ from __future__ import annotations
 import datetime as dt
 from dataclasses import dataclass, field
 
+from jinja2 import Environment, PackageLoader
+
+from raid_log import __version__
+from raid_log.bands import band_for
 from raid_log.model import Item, ItemType, Register
 
 
@@ -205,6 +209,30 @@ def to_markdown(report: Report) -> str:
         empty="No assumptions due for validation.",
     )
     return "\n".join(out).rstrip() + "\n"
+
+
+def to_html(report: Report, heatmap_svg: str | None = None) -> str:
+    env = Environment(
+        loader=PackageLoader("raid_log", "templates"),
+        autoescape=True,
+        trim_blocks=True,
+        lstrip_blocks=True,
+    )
+    template = env.get_template("report.html.j2")
+    return template.render(
+        report=report,
+        options=report.options,
+        register=report.register,
+        plural=_PLURAL,
+        band_for=band_for,
+        heatmap=_inline_svg(heatmap_svg),
+        version=__version__,
+    )
+
+
+def _inline_svg(svg: str | None) -> str | None:
+    # Inline SVG must not carry its own XML declaration or doctype.
+    return svg[svg.index("<svg") :] if svg else None
 
 
 def _risk_row(risk: Item) -> list[str]:
