@@ -11,24 +11,14 @@ import matplotlib
 from matplotlib.figure import Figure
 from matplotlib.patches import Patch, Rectangle
 
+from raid_log.bands import BANDS, band_for
 from raid_log.model import Item, ItemType, Register
 
-# Floors line up with the validator: 12 and above is where a mitigation becomes mandatory.
-BANDS = [
-    (20, "Critical (20-25)", "#ef9a9a"),
-    (12, "High (12-16)", "#f8c08a"),
-    (5, "Moderate (5-10)", "#f9e3a0"),
-    (1, "Low (1-4)", "#cde5c8"),
-]
 PROBABILITY_LABELS = ["Rare", "Unlikely", "Possible", "Likely", "Almost certain"]
 IMPACT_LABELS = ["Negligible", "Minor", "Moderate", "Major", "Severe"]
 # Two IDs per row and four rows is what fits in a cell at the default figure size.
 IDS_PER_ROW = 2
 MAX_IDS_PER_CELL = 8
-
-
-def band_color(exposure: int) -> str:
-    return next(color for floor, _, color in BANDS if exposure >= floor)
 
 
 def plotted_risks(register: Register, include_closed: bool = False) -> list[Item]:
@@ -57,7 +47,7 @@ def draw(register: Register, today: dt.date, include_closed: bool = False) -> Fi
                     (impact - 0.5, probability - 0.5),
                     1,
                     1,
-                    facecolor=band_color(exposure),
+                    facecolor=band_for(exposure).color,
                     edgecolor="white",
                     linewidth=3,
                 )
@@ -105,7 +95,7 @@ def draw(register: Register, today: dt.date, include_closed: bool = False) -> Fi
         pad=12,
     )
     fig.legend(
-        handles=[Patch(facecolor=color, label=label) for _, label, color in reversed(BANDS)],
+        handles=[Patch(facecolor=band.color, label=band.label) for band in reversed(BANDS)],
         loc="outside lower center",
         ncols=4,
         frameon=False,

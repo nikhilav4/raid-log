@@ -3,6 +3,7 @@ import datetime as dt
 from typer.testing import CliRunner
 
 from raid_log import heatmap
+from raid_log.bands import band_for
 from raid_log.cli import app
 
 from .factories import TODAY, load_items, make_item, register_text
@@ -15,12 +16,9 @@ def risks(count, probability=3, impact=3):
     ]
 
 
-def test_band_colors_follow_exposure_floors():
-    assert heatmap.band_color(25) == heatmap.band_color(20)
-    assert heatmap.band_color(16) == heatmap.band_color(12)
-    assert heatmap.band_color(10) == heatmap.band_color(5)
-    assert heatmap.band_color(4) == heatmap.band_color(1)
-    assert len({heatmap.band_color(e) for e in (1, 5, 12, 20)}) == 4
+def test_bands_follow_exposure_floors():
+    names = [band_for(exposure).name for exposure in (1, 4, 5, 10, 12, 16, 20, 25)]
+    assert names == ["Low", "Low", "Moderate", "Moderate", "High", "High", "Critical", "Critical"]
 
 
 def test_cell_label_wraps_and_truncates():
