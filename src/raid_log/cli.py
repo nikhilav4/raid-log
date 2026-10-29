@@ -11,6 +11,7 @@ import typer
 from raid_log import __version__
 from raid_log.findings import Finding, Level, as_dict, github_annotation
 from raid_log.loader import Loaded, RegisterError, load
+from raid_log.report import ReportOptions, build_report, to_markdown
 from raid_log.rules import validate as run_rules
 
 app = typer.Typer(
@@ -33,6 +34,10 @@ TodayOption = Annotated[
         show_default=False,
     ),
 ]
+
+
+class ReportFormat(StrEnum):
+    MARKDOWN = "markdown"
 
 
 class ValidateFormat(StrEnum):
@@ -94,6 +99,71 @@ def validate(
     if output is ValidateFormat.JSON:
         typer.echo(json.dumps(json_out, indent=2))
     raise typer.Exit(exit_code)
+
+
+@app.command()
+def report(
+    register: RegisterArg = DEFAULT_REGISTER,
+    since: Annotated[
+        dt.datetime | None,
+        typer.Option(
+            formats=["%Y-%m-%d"],
+            metavar="YYYY-MM-DD",
+            help="First day counted as new or closed, usually the last steering meeting. "
+            "Defaults to 14 days before today.",
+            show_default=False,
+        ),
+    ] = None,
+    top: Annotated[int, typer.Option(min=1, help="How many risks to list.")] = 5,
+    due_within: Annotated[
+        int, typer.Option(min=0, help="Days ahead to look for dependencies and assumptions.")
+    ] = 14,
+    aging_days: Annotated[
+        int, typer.Option(min=0, help="Age at which an open issue counts as aging.")
+    ] = 14,
+    output_format: Annotated[
+        ReportFormat, typer.Option("--format", help="Output format.")
+    ] = ReportFormat.MARKDOWN,
+    output: Annotated[
+        Path | None, typer.Option("--output", "-o", help="Write to a file instead of stdout.")
+    ] = None,
+    today: TodayOption = None,
+) -> None:
+    """Status report: top risks, what changed, overdue reviews, aging issues, due dates."""
+    loaded = _load_or_exit(register)
+    as_of = _as_date(today)
+    options = ReportOptions(
+        today=as_of,
+        since=since.date() if since else as_of - dt.timedelta(days=14),
+        top=top,
+        due_within=due_within,
+        aging_days=aging_days,
+    )
+    text = to_markdown(build_report(loaded.register, options))
+    _write(text, output)
+
+
+def _load_or_exit(path: Path) -> Loaded:
+    try:
+        loaded = load(path)
+    except RegisterError as exc:
+        typer.echo(f"error: {exc}", err=True)
+        raise typer.Exit(2) from None
+    if loaded.skipped:
+        typer.echo(
+            f"note: {_plural(loaded.skipped, 'item')} with schema errors left out; "
+            f"run `raid validate {path}` for details",
+            err=True,
+        )
+    return loaded
+
+
+def _write(text: str, output: Path | None) -> None:
+    if output is None:
+        typer.echo(text, nl=False)
+    else:
+        output.write_text(text, encoding="utf-8")
+        typer.echo(f"wrote {output}", err=True)
 
 
 def _print_findings(loaded: Loaded, findings: list[Finding], output: ValidateFormat) -> None:
