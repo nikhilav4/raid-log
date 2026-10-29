@@ -9,8 +9,10 @@ from typing import Annotated
 import typer
 
 from raid_log import __version__
+from raid_log import diff as register_diff
 from raid_log.findings import Finding, Level, as_dict, github_annotation
-from raid_log.loader import Loaded, RegisterError, load
+from raid_log.history import HistoryError, read_at
+from raid_log.loader import Loaded, RegisterError, load, parse
 from raid_log.report import ReportOptions, build_report, to_html, to_markdown
 from raid_log.rules import validate as run_rules
 
@@ -39,6 +41,11 @@ TodayOption = Annotated[
 class ReportFormat(StrEnum):
     MARKDOWN = "markdown"
     HTML = "html"
+
+
+class DiffFormat(StrEnum):
+    TEXT = "text"
+    MARKDOWN = "markdown"
 
 
 class ValidateFormat(StrEnum):
@@ -176,6 +183,56 @@ def heatmap(
     grid.save(fig, output)
     count = len(grid.plotted_risks(loaded.register, include_closed))
     typer.echo(f"wrote {output} ({_plural(count, 'risk')})", err=True)
+
+
+@app.command()
+def diff(
+    register: RegisterArg = DEFAULT_REGISTER,
+    since: Annotated[
+        str | None,
+        typer.Option(
+            metavar="REF",
+            help="Git tag, branch or commit, or a YYYY-MM-DD date meaning the register as "
+            "committed by the end of that day.",
+            show_default=False,
+        ),
+    ] = None,
+    against: Annotated[
+        Path | None,
+        typer.Option(
+            dir_okay=False,
+            help="Compare with another copy of the register instead of git history.",
+            show_default=False,
+        ),
+    ] = None,
+    output_format: Annotated[
+        DiffFormat, typer.Option("--format", help="text, or markdown for a steering pack.")
+    ] = DiffFormat.TEXT,
+    output: Annotated[
+        Path | None, typer.Option("--output", "-o", help="Write to a file instead of stdout.")
+    ] = None,
+) -> None:
+    """What changed in the register since a git ref or date, such as the last steering meeting."""
+    if (since is None) == (against is None):
+        typer.echo("error: give either --since REF or --against FILE", err=True)
+        raise typer.Exit(2)
+    current = _load_or_exit(register)
+    if against is not None:
+        previous = _load_or_exit(against).register
+        label = str(against)
+    else:
+        try:
+            snapshot = read_at(register, since or "")
+            previous = parse(snapshot.text, register).register if snapshot.text else None
+        except (HistoryError, RegisterError) as exc:
+            typer.echo(f"error: {exc}", err=True)
+            raise typer.Exit(2) from None
+        label = snapshot.label
+    changes = register_diff.compare(previous, current.register)
+    render = (
+        register_diff.to_markdown if output_format is DiffFormat.MARKDOWN else register_diff.to_text
+    )
+    _write(render(changes, current.register.title, label), output)
 
 
 def _load_or_exit(path: Path) -> Loaded:
