@@ -1,0 +1,293 @@
+# Fictional project. People, teams and dates are made up for the example.
+project: EHR Integration Phase 2
+updated: 2026-10-27
+items:
+  - id: R-001
+    type: risk
+    title: Interface vendor may slip the HL7 ADT feed
+    description: >-
+      Real-time admit, discharge and transfer messages drive the census and bed board.
+      The vendor has moved the test feed date once already.
+    owner: Priya Shah
+    status: mitigating
+    raised: 2026-09-02
+    review_by: 2026-11-03
+    probability: 4
+    impact: 5
+    mitigation: Weekly vendor checkpoint; flat-file fallback scoped
+    contingency: Go live on a nightly flat-file census load and move real-time ADT to a fast follow
+    workstream: Integrations
+    links: [D-003]
+    tags: [vendor, hl7]
+    source: Steering committee 2026-09-08
+    log:
+      - {date: 2026-09-16, note: Vendor committed to a test feed by 10-10}
+      - {date: 2026-10-13, note: Vendor confirmed test window}
+      - {date: 2026-10-24, note: Test feed slipped to 11-04; probability raised from 3 to 4}
+
+  - id: R-002
+    type: risk
+    title: Duplicate patient records in the legacy MPI could overlay charts during the merge
+    description: >-
+      A sample of the master patient index shows about 2 percent potential duplicates.
+      Merging the wrong pair puts one patient's history in another patient's chart.
+    owner: Marcus Bell
+    status: mitigating
+    raised: 2026-09-09
+    review_by: 2026-11-05
+    probability: 3
+    impact: 5
+    mitigation: Probabilistic match on the full extract; HIM works the potential-duplicate queue before cutover
+    contingency: Hold unresolved pairs out of the merge and register those patients manually during hypercare
+    workstream: Data migration
+    tags: [mpi, patient-safety]
+    log:
+      - {date: 2026-10-07, note: "First match run flagged 1,840 pairs for HIM review"}
+
+  - id: R-003
+    type: risk
+    title: Night-shift nurses may not finish training before go-live
+    owner: Jordan Reyes
+    status: open
+    raised: 2026-10-06
+    review_by: 2026-11-02
+    probability: 3
+    impact: 4
+    mitigation: Recorded sessions plus super-user rounding on nights for the first two weeks
+    workstream: Clinical readiness
+    tags: [training]
+
+  - id: R-004
+    type: risk
+    title: Lab results interface may map units inconsistently for point-of-care glucose
+    owner: Priya Shah
+    status: monitoring
+    raised: 2026-09-23
+    review_by: 2026-11-10
+    probability: 2
+    impact: 4
+    mitigation: Lab informatics reviews the unit mapping table; parallel run compares 200 results
+    workstream: Integrations
+    links: [D-005]
+    tags: [hl7, lab, patient-safety]
+
+  - id: R-005
+    type: risk
+    title: Test environment refresh could wipe UAT data mid-cycle
+    owner: Tom Okafor
+    status: monitoring
+    raised: 2026-09-30
+    review_by: 2026-11-06
+    probability: 2
+    impact: 3
+    mitigation: Refreshes frozen until UAT exit; snapshot taken before each test cycle
+    workstream: Infrastructure
+
+  - id: R-006
+    type: risk
+    title: Interface analyst who knows the mappings best leaves in November
+    owner: Elena Ruiz
+    status: open
+    raised: 2026-10-16
+    review_by: 2026-11-02
+    probability: 3
+    impact: 3
+    mitigation: Paired mapping sessions and a written runbook before 11-20
+    workstream: Integrations
+    tags: [resourcing]
+
+  - id: R-007
+    type: risk
+    title: Go-live weekend may coincide with a respiratory-season census surge
+    owner: Elena Ruiz
+    status: open
+    raised: 2026-10-08
+    review_by: 2026-10-26
+    probability: 3
+    impact: 3
+    mitigation: Agree a census threshold with nursing leadership that triggers a postponement
+    workstream: Cutover
+
+  - id: R-008
+    type: risk
+    title: Pharmacy formulary mapping may be incomplete at cutover
+    owner: Marcus Bell
+    status: mitigating
+    raised: 2026-10-20
+    review_by: 2026-11-03
+    probability: 3
+    impact: 4
+    mitigation: >-
+      Pharmacy informatics maps the remaining 140 NDCs; anything unmapped falls back to
+      free text with pharmacist verification
+    workstream: Data migration
+    tags: [pharmacy, patient-safety]
+
+  - id: R-009
+    type: risk
+    title: Security review backlog may delay production access for the integration team
+    owner: Grace Liu
+    status: closed
+    raised: 2026-09-02
+    probability: 3
+    impact: 3
+    mitigation: Security review booked as a priority slot
+    resolution: Review completed and production access approved on 2026-10-16
+    workstream: Security and compliance
+    log:
+      - {date: 2026-10-16, note: Review complete; access granted}
+
+  - id: R-010
+    type: risk
+    title: ED downtime procedures have not been rehearsed for the cutover window
+    owner: Dana Whitfield
+    status: open
+    raised: 2026-10-22
+    review_by: 2026-11-04
+    probability: 2
+    impact: 5
+    mitigation: Tabletop rehearsal with ED charge nurses on 11-12; downtime packets printed
+    workstream: Cutover
+    tags: [downtime, patient-safety]
+
+  - id: A-001
+    type: assumption
+    title: Hospital IT provides a site-to-site VPN tunnel before integration testing
+    owner: Tom Okafor
+    status: closed
+    raised: 2026-08-26
+    validate_by: 2026-10-01
+    resolution: Tunnel live and tested on 2026-09-29
+    workstream: Infrastructure
+    log:
+      - {date: 2026-09-29, note: Tunnel up; latency within limits}
+
+  - id: A-002
+    type: assumption
+    title: Provider directory NPIs in the source system are current
+    description: Referral routing matches on NPI. Check a sample against the credentialing roster.
+    owner: Marcus Bell
+    status: open
+    raised: 2026-09-15
+    review_by: 2026-10-30
+    validate_by: 2026-10-30
+    workstream: Data migration
+
+  - id: A-003
+    type: assumption
+    title: Clinics accept a four-hour read-only window during cutover
+    owner: Dana Whitfield
+    status: open
+    raised: 2026-10-06
+    review_by: 2026-11-06
+    validate_by: 2026-11-06
+    workstream: Cutover
+    links: [D-002]
+
+  - id: I-001
+    type: issue
+    title: UAT environment has no realistic pediatric test patients
+    description: Weight-based dosing scenarios cannot be tested with the current synthetic patient set.
+    owner: Sam Patel
+    status: open
+    severity: medium
+    raised: 2026-09-18
+    review_by: 2026-11-02
+    workstream: Testing
+    log:
+      - {date: 2026-10-05, note: Asked the vendor for a pediatric test-patient pack}
+
+  - id: I-002
+    type: issue
+    title: Agency nurses hit an SSO login loop
+    owner: Tom Okafor
+    status: resolved
+    severity: high
+    raised: 2026-10-01
+    resolution: Identity provider claim mapping fixed; verified with five agency accounts
+    workstream: Infrastructure
+    log:
+      - {date: 2026-10-08, note: Workaround is direct login for agency staff}
+      - {date: 2026-10-21, note: Fix deployed and verified}
+
+  - id: I-003
+    type: issue
+    title: Allergy lists show duplicate entries after the second migration test load
+    owner: Marcus Bell
+    status: mitigating
+    severity: high
+    raised: 2026-10-14
+    review_by: 2026-10-30
+    workstream: Data migration
+    tags: [patient-safety]
+    log:
+      - {date: 2026-10-20, note: Root cause is allergies loaded from two source tables}
+
+  - id: I-004
+    type: issue
+    title: Interface engine error queue is not monitored after hours
+    description: Rejected ADT messages wait in the error queue until the day team checks it.
+    owner: Priya Shah
+    status: open
+    severity: high
+    raised: 2026-10-09
+    review_by: 2026-11-02
+    workstream: Integrations
+    links: [R-001]
+
+  - id: D-001
+    type: dependency
+    title: Vendor delivers the FHIR R4 scheduling endpoint to the test environment
+    owner: Priya Shah
+    status: open
+    raised: 2026-09-02
+    review_by: 2026-11-03
+    counterparty: EHR vendor integration team
+    need_by: 2026-11-06
+    workstream: Integrations
+
+  - id: D-002
+    type: dependency
+    title: Network change window approved for go-live weekend
+    owner: Tom Okafor
+    status: open
+    raised: 2026-09-30
+    review_by: 2026-11-10
+    counterparty: Hospital IT network team
+    need_by: 2026-11-20
+    workstream: Cutover
+
+  - id: D-003
+    type: dependency
+    title: Hospital IT interface team stands up the ADT feed in test
+    owner: Priya Shah
+    status: open
+    raised: 2026-09-02
+    review_by: 2026-11-03
+    counterparty: Hospital IT interface team
+    need_by: 2026-11-15
+    workstream: Integrations
+    links: [R-001]
+
+  - id: D-004
+    type: dependency
+    title: Privacy office signs the data-sharing agreement amendment
+    owner: Grace Liu
+    status: open
+    raised: 2026-10-02
+    review_by: 2026-11-02
+    counterparty: Privacy office
+    need_by: 2026-11-04
+    workstream: Security and compliance
+
+  - id: D-005
+    type: dependency
+    title: Lab informatics signs off the unit-of-measure mapping
+    owner: Priya Shah
+    status: open
+    raised: 2026-09-23
+    review_by: 2026-11-10
+    counterparty: Lab informatics
+    need_by: 2026-11-13
+    workstream: Integrations
+    links: [R-004]
