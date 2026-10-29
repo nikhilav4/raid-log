@@ -185,7 +185,11 @@ def _describe(err: ErrorDetails) -> str:
     if kind == "list_type":
         return f"{field_path} must be a list, for example [D-003]"
     if kind == "extra_forbidden":
-        return f"unexpected field `{field_path}`"
+        message = f"unexpected field `{field_path}`"
+        if err["loc"][0] == "log":
+            # The usual cause: `{date: ..., note: 3 sites, 2 vendors}` splits at the comma.
+            message += "; if the note contains a comma, put the note in quotes"
+        return message
     return f"{field_path}: {err['msg']}"
 
 

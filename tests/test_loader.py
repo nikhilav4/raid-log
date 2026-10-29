@@ -137,3 +137,23 @@ def test_unreadable_files_raise_register_error(tmp_path):
         parse("project: Demo\nproject: Other\nupdated: 2026-10-27\n", Path("raid.yaml"))
     with pytest.raises(RegisterError, match="must be a list"):
         parse("project: Demo\nupdated: 2026-10-27\nitems: R-001\n", Path("raid.yaml"))
+
+
+def test_comma_in_flow_style_log_note_gets_a_hint():
+    text = dedent("""\
+        project: Demo
+        updated: 2026-10-27
+        items:
+          - id: I-001
+            type: issue
+            title: Something
+            owner: Sam Patel
+            status: open
+            raised: 2026-10-01
+            log:
+              - {date: 2026-10-07, note: Match run flagged 1,840 pairs}
+        """)
+    (finding,) = parse(text, Path("raid.yaml")).findings
+
+    assert finding.message.startswith("unexpected field `log[0].840 pairs`")
+    assert "put the note in quotes" in finding.message
