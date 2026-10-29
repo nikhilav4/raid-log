@@ -1,0 +1,45 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "raid-log"
+version = "0.1.0"
+description = "RAID log as code: validate, report on and diff a YAML register of risks, assumptions, issues and dependencies."
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Nikhila Veeramalla" }]
+requires-python = ">=3.11"
+classifiers = [
+    "Environment :: Console",
+    "Intended Audience :: Information Technology",
+    "Programming Language :: Python :: 3",
+    "Topic :: Office/Business :: Scheduling",
+]
+dependencies = [
+    "jinja2>=3.1",
+    "matplotlib>=3.8",
+    "pydantic>=2.7",
+    "ruamel.yaml>=0.18",
+    "typer>=0.12",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "ruff>=0.6"]
+
+[project.scripts]
+raid = "raid_log.cli:app"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/raid_log"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
