@@ -143,6 +143,31 @@ def report(
     _write(text, output)
 
 
+@app.command()
+def heatmap(
+    register: RegisterArg = DEFAULT_REGISTER,
+    output: Annotated[
+        Path, typer.Option("--output", "-o", help="Image to write, .png or .svg.")
+    ] = Path("raid-heatmap.png"),
+    include_closed: Annotated[
+        bool, typer.Option("--include-closed", help="Plot resolved and closed risks too.")
+    ] = False,
+    today: TodayOption = None,
+) -> None:
+    """5x5 probability by impact heatmap with risk IDs in their cells."""
+    if output.suffix.lower() not in (".png", ".svg"):
+        typer.echo("error: --output must end in .png or .svg", err=True)
+        raise typer.Exit(2)
+    loaded = _load_or_exit(register)
+    # matplotlib takes a moment to import, so only commands that draw pay for it.
+    from raid_log import heatmap as grid
+
+    fig = grid.draw(loaded.register, _as_date(today), include_closed)
+    grid.save(fig, output)
+    count = len(grid.plotted_risks(loaded.register, include_closed))
+    typer.echo(f"wrote {output} ({_plural(count, 'risk')})", err=True)
+
+
 def _load_or_exit(path: Path) -> Loaded:
     try:
         loaded = load(path)
