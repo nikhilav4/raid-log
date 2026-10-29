@@ -125,12 +125,17 @@ def parse(text: str, path: Path) -> Loaded:
 def _validate_header(
     header: dict[str, Any], lines: Mapping[str, int], findings: list[Finding]
 ) -> Register:
+    bad: set[str] = set()
     try:
-        return Register.model_validate(header)
+        register = Register.model_validate(header)
     except ValidationError as exc:
         findings.extend(_schema_findings(exc, None, lines, None))
-        bad = {err["loc"][0] for err in exc.errors() if err["loc"]}
-        return Register.model_validate({k: v for k, v in header.items() if k not in bad})
+        bad = {str(err["loc"][0]) for err in exc.errors() if err["loc"]}
+        register = Register.model_validate({k: v for k, v in header.items() if k not in bad})
+    for key in ("project", "updated"):
+        if getattr(register, key) is None and key not in bad:
+            findings.append(error("schema", f"missing required field `{key}`", line=lines.get(key)))
+    return register
 
 
 def _entry_line(seq: Any, index: int) -> int | None:

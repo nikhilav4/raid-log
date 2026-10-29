@@ -118,6 +118,10 @@ class Item(BaseModel):
     def last_logged(self) -> dt.date | None:
         return max((entry.date for entry in self.log), default=None)
 
+    @property
+    def last_activity(self) -> dt.date:
+        return max([self.raised, *(entry.date for entry in self.log)])
+
 
 class Register(BaseModel):
     model_config = ConfigDict(extra="allow")
