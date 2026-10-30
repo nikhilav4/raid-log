@@ -1,4 +1,5 @@
 import datetime as dt
+from pathlib import Path
 
 from typer.testing import CliRunner
 
@@ -8,6 +9,7 @@ from raid_log.diff import compare, to_markdown, to_text
 from .factories import load_items, make_item, register_text
 
 D = dt.date
+EXAMPLES = Path(__file__).resolve().parent.parent / "examples"
 CLOSED = {
     "status": "closed",
     "resolution": "Vendor delivered the feed",
@@ -136,3 +138,32 @@ def test_diff_needs_exactly_one_baseline(tmp_path):
     assert runner.invoke(app, ["diff", str(path)]).exit_code == 2
     both = runner.invoke(app, ["diff", str(path), "--since", "HEAD", "--against", str(path)])
     assert both.exit_code == 2
+
+
+def ids_by_section(text):
+    sections = {}
+    for line in text.splitlines()[2:]:
+        if line and not line.startswith(" "):
+            heading = line
+            sections[heading] = []
+        elif line.startswith("  ") and not line.startswith("   "):
+            sections[heading].append(line.split()[0])
+    return sections
+
+
+def test_example_diff_since_the_previous_steering_meeting():
+    current = EXAMPLES / "ehr-integration.yaml"
+    previous = EXAMPLES / "ehr-integration-2026-10-13.yaml"
+
+    result = CliRunner().invoke(app, ["diff", str(current), "--against", str(previous)])
+
+    assert result.exit_code == 0, result.output
+    assert ids_by_section(result.output) == {
+        "New (4)": ["R-006", "R-008", "R-010", "I-003"],
+        "Resolved or closed (2)": ["R-009", "I-002"],
+        "Exposure up (2)": ["R-001", "R-003"],
+        "Other changes (2)": ["A-002", "D-001"],
+        "Removed (1)": ["A-004"],
+    }
+    assert "exposure 15 -> 20 (probability 3 -> 4)" in result.output
+    assert "exposure 8 -> 12 (probability 2 -> 3)" in result.output
