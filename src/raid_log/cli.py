@@ -10,9 +10,11 @@ import typer
 
 from raid_log import __version__
 from raid_log import diff as register_diff
+from raid_log.editing import add_item
 from raid_log.findings import Finding, Level, as_dict, github_annotation
 from raid_log.history import HistoryError, read_at
-from raid_log.loader import Loaded, RegisterError, load, parse
+from raid_log.loader import Loaded, RegisterError, load, parse, read_text
+from raid_log.model import ItemType, Severity
 from raid_log.report import ReportOptions, build_report, to_html, to_markdown
 from raid_log.rules import validate as run_rules
 
@@ -23,6 +25,7 @@ app = typer.Typer(
 )
 
 DEFAULT_REGISTER = Path("raid.yaml")
+REVIEW_CADENCE = dt.timedelta(days=14)
 
 RegisterArg = Annotated[
     Path, typer.Argument(help="Register file.", dir_okay=False, show_default=True)
@@ -52,6 +55,20 @@ class ValidateFormat(StrEnum):
     TEXT = "text"
     GITHUB = "github"
     JSON = "json"
+
+
+class ActiveStatus(StrEnum):
+    # Resolved and closed items need a resolution, which is written by editing the item, so
+    # `raid add` only starts items in an active status.
+    OPEN = "open"
+    MONITORING = "monitoring"
+    MITIGATING = "mitigating"
+
+
+def _date_option(help_text: str) -> typer.models.OptionInfo:
+    return typer.Option(
+        formats=["%Y-%m-%d"], metavar="YYYY-MM-DD", help=help_text, show_default=False
+    )
 
 
 def _print_version(value: bool) -> None:
@@ -233,6 +250,78 @@ def diff(
         register_diff.to_markdown if output_format is DiffFormat.MARKDOWN else register_diff.to_text
     )
     _write(render(changes, current.register.title, label), output)
+
+
+@app.command()
+def add(
+    item_type: Annotated[ItemType, typer.Argument(metavar="TYPE")],
+    title: Annotated[str, typer.Option(help="One line saying what the item is.")],
+    owner: Annotated[str, typer.Option(help="The person accountable for it.")],
+    register: RegisterArg = DEFAULT_REGISTER,
+    description: Annotated[str | None, typer.Option(help="Background, if needed.")] = None,
+    status: Annotated[ActiveStatus, typer.Option()] = ActiveStatus.OPEN,
+    raised: Annotated[dt.datetime | None, _date_option("Defaults to today.")] = None,
+    review_by: Annotated[
+        dt.datetime | None,
+        _date_option("Next review. Defaults to 14 days after today, a fortnightly cadence."),
+    ] = None,
+    probability: Annotated[
+        int | None, typer.Option("--probability", "-p", min=1, max=5, help="Risks: 1-5.")
+    ] = None,
+    impact: Annotated[
+        int | None, typer.Option("--impact", "-i", min=1, max=5, help="Risks: 1-5.")
+    ] = None,
+    mitigation: Annotated[
+        str | None, typer.Option(help="Risks: needed at exposure 12 or more.")
+    ] = None,
+    contingency: Annotated[str | None, typer.Option(help="Risks: the plan if it happens.")] = None,
+    severity: Annotated[Severity | None, typer.Option(help="Issues.")] = None,
+    counterparty: Annotated[
+        str | None, typer.Option(help="Dependencies: who has to deliver.")
+    ] = None,
+    need_by: Annotated[dt.datetime | None, _date_option("Dependencies: needed by.")] = None,
+    validate_by: Annotated[
+        dt.datetime | None, _date_option("Assumptions: confirm by this date.")
+    ] = None,
+    workstream: Annotated[str | None, typer.Option()] = None,
+    links: Annotated[
+        list[str] | None, typer.Option("--link", help="ID of a related item. Repeatable.")
+    ] = None,
+    tags: Annotated[list[str] | None, typer.Option("--tag", help="Repeatable.")] = None,
+    source: Annotated[
+        str | None, typer.Option(help="Where it was raised, such as a meeting and date.")
+    ] = None,
+    today: TodayOption = None,
+) -> None:
+    """Append an item with the next free ID and set updated to today."""
+    as_of = _as_date(today)
+    fields = {
+        "title": title,
+        "description": description,
+        "owner": owner,
+        "status": status,
+        "raised": raised.date() if raised else as_of,
+        "review_by": review_by.date() if review_by else as_of + REVIEW_CADENCE,
+        "probability": probability,
+        "impact": impact,
+        "severity": severity,
+        "counterparty": counterparty,
+        "need_by": need_by.date() if need_by else None,
+        "validate_by": validate_by.date() if validate_by else None,
+        "mitigation": mitigation,
+        "contingency": contingency,
+        "workstream": workstream,
+        "links": links,
+        "tags": tags,
+        "source": source,
+    }
+    try:
+        added = add_item(read_text(register), register, item_type, fields, as_of)
+    except RegisterError as exc:
+        typer.echo(f"error: {exc}", err=True)
+        raise typer.Exit(2) from None
+    register.write_text(added.text, encoding="utf-8")
+    typer.echo(added.item_id)
 
 
 def _load_or_exit(path: Path) -> Loaded:

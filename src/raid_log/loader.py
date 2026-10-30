@@ -74,11 +74,14 @@ class Loaded:
 
 
 def load(path: Path) -> Loaded:
+    return parse(read_text(path), path)
+
+
+def read_text(path: Path) -> str:
     try:
-        text = path.read_text(encoding="utf-8")
+        return path.read_text(encoding="utf-8")
     except FileNotFoundError:
         raise RegisterError(f"{path}: no such file") from None
-    return parse(text, path)
 
 
 def parse(text: str, path: Path) -> Loaded:
