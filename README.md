@@ -7,8 +7,8 @@ Most RAID logs live in a spreadsheet that drifts. Owners go missing, review date
 anyone noticing, and a risk whose likelihood just went up looks the same as one that hasn't moved.
 A steering committee mostly wants two answers: where is the biggest exposure right now, and what
 changed since we last met. raid-log answers both from a plain YAML file that can sit in the repo and
-go through review like any other change. It comes out of running Agile delivery for a healthcare
-software platform, where the RAID log feeds every steering meeting.
+go through review like any other change. I keep RAID logs while running Agile delivery for a
+healthcare software platform, and they feed the status reporting to leadership.
 
 ## Quick start
 
