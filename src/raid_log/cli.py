@@ -14,7 +14,7 @@ from raid_log.editing import add_item
 from raid_log.findings import Finding, Level, as_dict, github_annotation
 from raid_log.history import HistoryError, read_at
 from raid_log.loader import Loaded, RegisterError, load, parse, read_text
-from raid_log.model import ItemType, Severity
+from raid_log.model import TYPE_SPECIFIC_FIELDS, ItemType, Severity
 from raid_log.report import ReportOptions, build_report, to_html, to_markdown
 from raid_log.rules import validate as run_rules
 
@@ -291,9 +291,15 @@ def add(
     source: Annotated[
         str | None, typer.Option(help="Where it was raised, such as a meeting and date.")
     ] = None,
+    dry_run: Annotated[
+        bool, typer.Option("--dry-run", help="Print the new item instead of writing it.")
+    ] = False,
     today: TodayOption = None,
 ) -> None:
-    """Append an item with the next free ID and set updated to today."""
+    """Append an item with the next free ID and set updated to today.
+
+    Nothing is written if raid validate would report an error for the new item.
+    """
     as_of = _as_date(today)
     fields = {
         "title": title,
@@ -315,11 +321,25 @@ def add(
         "tags": tags,
         "source": source,
     }
+    for name, owner_type in TYPE_SPECIFIC_FIELDS.items():
+        if fields[name] is not None and owner_type is not item_type:
+            flag = "--" + name.replace("_", "-")
+            typer.echo(f"error: {flag} only applies to {owner_type} items", err=True)
+            raise typer.Exit(2)
     try:
         added = add_item(read_text(register), register, item_type, fields, as_of)
     except RegisterError as exc:
         typer.echo(f"error: {exc}", err=True)
         raise typer.Exit(2) from None
+    # No file:line here: the new item's lines exist only in memory.
+    for finding in added.findings:
+        typer.echo(_format_finding(finding), err=True)
+    if any(f.is_error for f in added.findings):
+        typer.echo(f"nothing written to {register}", err=True)
+        raise typer.Exit(1)
+    if dry_run:
+        typer.echo(added.item_yaml, nl=False)
+        return
     register.write_text(added.text, encoding="utf-8")
     typer.echo(added.item_id)
 
@@ -354,12 +374,16 @@ def _print_findings(loaded: Loaded, findings: list[Finding], output: ValidateFor
             typer.echo(github_annotation(path, finding))
             continue
         where = f"{path}:{finding.line}" if finding.line else path
-        color = "red" if finding.level is Level.ERROR else "yellow"
-        level = typer.style(str(finding.level), fg=color, bold=True)
-        item = f"{finding.item_id}: " if finding.item_id else ""
-        rule = typer.style(f"[{finding.rule}]", dim=True)
-        typer.echo(f"{where}: {level} {item}{finding.message} {rule}")
+        typer.echo(f"{where}: {_format_finding(finding)}")
     typer.echo(_summary(loaded, findings))
+
+
+def _format_finding(finding: Finding) -> str:
+    color = "red" if finding.level is Level.ERROR else "yellow"
+    level = typer.style(str(finding.level), fg=color, bold=True)
+    item = f"{finding.item_id}: " if finding.item_id else ""
+    rule = typer.style(f"[{finding.rule}]", dim=True)
+    return f"{level} {item}{finding.message} {rule}"
 
 
 def _summary(loaded: Loaded, findings: list[Finding]) -> str:

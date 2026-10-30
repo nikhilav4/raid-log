@@ -15,8 +15,10 @@ from ruamel.yaml import YAML
 from ruamel.yaml.comments import CommentedMap, CommentedSeq
 from ruamel.yaml.representer import RoundTripRepresenter
 
+from raid_log.findings import Finding
 from raid_log.loader import Loaded, parse, yaml_round_trip
 from raid_log.model import ItemType
+from raid_log.rules import validate
 
 # The shared format's field order, with the type-specific fields after review_by, so an added
 # item reads like the hand-written ones around it.
@@ -49,6 +51,10 @@ class Added:
     item_id: str
     text: str
     """The whole register with the new item appended."""
+    item_yaml: str
+    """The new item on its own, laid out as it is in the file."""
+    findings: list[Finding]
+    """What `raid validate` reports about the new item."""
 
 
 def next_id(raw_ids: Iterable[str | None], item_type: ItemType) -> str:
@@ -64,10 +70,11 @@ def next_id(raw_ids: Iterable[str | None], item_type: ItemType) -> str:
 def add_item(
     text: str, path: Path, item_type: ItemType, fields: Mapping[str, Any], today: dt.date
 ) -> Added:
-    """Append an item with the next free ID and set `updated` to today.
+    """Append an item with the next free ID, set `updated` to today and check the item.
 
-    Comments, quoting and blank lines in the rest of the file stay as they were. Raises
-    `RegisterError` if the text cannot be read as a register.
+    Comments, quoting and blank lines in the rest of the file stay as they were. Nothing is
+    written here; the caller decides what to do with the findings. Raises `RegisterError` if
+    the text cannot be read as a register.
     """
     loaded = parse(text, path)
     item_id = next_id((entry.item_id for entry in loaded.raw), item_type)
@@ -79,14 +86,16 @@ def add_item(
         items = data["items"] = CommentedSeq()
     # `items: []` loads as a flow sequence and would put the new item on that same line.
     items.fa.set_block_style()
-    items.append(_new_item({"id": item_id, "type": item_type, **fields}))
+    item = _new_item({"id": item_id, "type": item_type, **fields})
+    items.append(item)
     if _blank_line_between_items(text, loaded):
         items.yaml_set_comment_before_after_key(len(items) - 1, before="\n")
     _set_updated(data, today)
 
-    stream = io.StringIO()
-    yaml.dump(data, stream)
-    return Added(item_id, stream.getvalue())
+    new_text = _dump(yaml, data)
+    # Check the item the way `raid validate` will read it back from the file.
+    findings = [f for f in validate(parse(new_text, path), today) if f.item_id == item_id]
+    return Added(item_id, new_text, _dump(yaml, [item]), findings)
 
 
 class _Representer(RoundTripRepresenter):
@@ -104,6 +113,12 @@ def _round_trip() -> YAML:
     yaml.width = 4096
     yaml.preserve_quotes = True
     return yaml
+
+
+def _dump(yaml: YAML, data: Any) -> str:
+    stream = io.StringIO()
+    yaml.dump(data, stream)
+    return stream.getvalue()
 
 
 def _new_item(fields: Mapping[str, Any]) -> CommentedMap:

@@ -141,3 +141,73 @@ def test_missing_register_is_not_created(tmp_path):
     assert result.exit_code == 2
     assert "no such file" in result.output
     assert not (tmp_path / "raid.yaml").exists()
+
+
+@pytest.mark.parametrize(
+    ("options", "rule"),
+    [
+        (["risk", "-p", "4", "-i", "3"], "unmitigated-risk"),
+        (["risk", "-p", "4"], "missing-rating"),
+        (["dependency", "--counterparty", "Privacy office"], "dependency-details"),
+        (["dependency", "--need-by", "2026-11-20"], "dependency-details"),
+        (["issue", "--severity", "low", "--link", "D-009"], "broken-link"),
+    ],
+)
+def test_refuses_an_item_that_would_fail_validation(tmp_path, options, rule):
+    path = write(tmp_path, HAND_WRITTEN)
+
+    result = add(path, *options)
+
+    assert result.exit_code == 1
+    assert f"[{rule}]" in result.output
+    assert f"nothing written to {path}" in result.output
+    assert path.read_text() == HAND_WRITTEN
+
+
+def test_refusal_names_the_new_item(tmp_path):
+    path = write(tmp_path, HAND_WRITTEN)
+
+    result = add(path, "risk", "-p", "4", "-i", "4")
+
+    assert result.output.splitlines()[0] == (
+        "error R-002: exposure 16 (4 x 4) needs a mitigation [unmitigated-risk]"
+    )
+
+
+def test_options_for_another_item_type_are_rejected(tmp_path):
+    path = write(tmp_path, HAND_WRITTEN)
+
+    result = add(path, "issue", "--severity", "low", "--need-by", "2026-11-20")
+
+    assert result.exit_code == 2
+    assert "--need-by only applies to dependency items" in result.output
+    assert path.read_text() == HAND_WRITTEN
+
+
+def test_warnings_are_shown_but_the_item_is_still_added(tmp_path):
+    path = write(tmp_path, HAND_WRITTEN)
+
+    result = add(path, "issue")
+
+    assert result.exit_code == 0
+    assert result.output == "warning I-001: issue has no severity [missing-severity]\nI-001\n"
+    assert "  - id: I-001\n" in path.read_text()
+
+
+def test_dry_run_prints_the_item_and_leaves_the_file_alone(tmp_path):
+    path = write(tmp_path, HAND_WRITTEN)
+
+    result = add(path, "assumption", "--validate-by", "2026-11-20", "--dry-run")
+
+    assert result.exit_code == 0, result.output
+    assert result.output == (
+        "  - id: A-001\n"
+        "    type: assumption\n"
+        "    title: New item\n"
+        "    owner: Sam Patel\n"
+        "    status: open\n"
+        "    raised: 2026-10-28\n"
+        "    review_by: 2026-11-11\n"
+        "    validate_by: 2026-11-20\n"
+    )
+    assert path.read_text() == HAND_WRITTEN
